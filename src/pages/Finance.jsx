@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { MdDelete } from "react-icons/md";
 import { BiEdit } from "react-icons/bi";
-import { GiPayMoney } from "react-icons/gi";
-import { MdSell } from "react-icons/md";
 export default function Finance() {
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [openModal, setOpenModal] = useState(false);
   const [openDeleteCreance, setOpenDeleteCreance] = useState(false);
   const [openDeleteDette, setOpenDeleteDette] = useState(false);
+  const [detteRembours, setDetteRembours] = useState(false);
   const [open, setOpen] = useState(false);
   const [produitId, setProduitId] = useState("");
   const [clientId, setClientId] = useState("");
@@ -17,7 +16,7 @@ export default function Finance() {
   const [produits, setProduits] = useState([]);
   const [creances, setCreance] = useState([]);
   const [dettes, setDette] = useState([]);
-  const [detteId, setDetteId] = useState(null);
+  const [detteId, setDetteId] = useState("");
   const [fournisseurs, setFournisseur] = useState([]);
   const [nomFournisseur, setNomFournisseur] = useState("");
   const [fournisseurId, setFournisseurId] = useState("");
@@ -27,12 +26,20 @@ export default function Finance() {
   const [siege, setSiege] = useState("");
   const [prixProduit, setPrixProduit] = useState("");
   const [quantite, setQuantite] = useState("");
-  const montantTotal = prixProduit * quantite;
-  const montant = prixUnitaire * quantite;
+  const [montant, setMontant] = useState(0);
+  const [montantDette, setMontantDette] = useState("");
+  const [montantTotal, setMontantTotal] = useState(0);
+  const [montantInitial, setMontantInitial] = useState("");
+  const [montantVerse, setMontantVerse] = useState("");
+  const [creanceSoldes, setCreanceSolde] = useState([]);
+  const montantRestant = montantTotal - montantVerse;
   const [message, setMessage] = useState({ text: "", type: "" });
-  const [creanceId, setCreanceId] = useState(null);
+  const [creanceId, setCreanceId] = useState("");
   const [dateSolde, setDateSolde] = useState("");
+  const [montantRembourse, setMontantRembourse] = useState("");
   const [dateRembourse, setDateRembourse] = useState("");
+  const [detteRembourses, setDetteRembourse] = useState([]);
+  const montantReste = montantDette - montantRembourse;
   const produitSelect = produits.find((produit) => produit.id === produitId);
   const links = [
     {
@@ -70,8 +77,17 @@ export default function Finance() {
     setMessage({ text, type });
     setTimeout(() => {
       afficherMessage((text = ""), (type = ""));
-    }, 4000);
+    }, 3000);
   };
+
+  //Calcul des des montant total
+  useEffect(() => {
+    setMontantTotal(prixProduit * quantite);
+  }, [prixProduit, quantite]);
+  //Calcul de montant de dette
+  useEffect(() => {
+    setMontant(prixUnitaire * quantite);
+  }, [prixUnitaire, quantite]);
   //Charger les creance
   useEffect(() => {
     fetch("http://localhost:4000/creances")
@@ -100,10 +116,65 @@ export default function Finance() {
   const resetCreanceForm = () => {
     setClientId("");
     setProduitId("");
-    setPrixProduit("");
     setProfession("");
     setQuantite("");
     setDateSolde("");
+    setMontantVerse("");
+  };
+  // Fonction pour creance solde
+  const handleSubmitCreanceSolde = async (e) => {
+    e.preventDefault();
+    if (!creanceId || !montantVerse) {
+      return afficherMessage("Tous les champs doivent être remplir", "echec");
+    }
+    try {
+      const reponse = await fetch("http://localhost:4000/creanceSoldes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ creanceId, montantVerse }),
+      });
+      const data = await reponse.json();
+      if (!reponse.ok) {
+        throw new Error(data.message);
+      }
+      afficherMessage("Payement effectué avec succès!", "succes");
+      setCreanceId("");
+      setMontantVerse("");
+    } catch (error) {
+      console.error("Erreur", error);
+      afficherMessage(error.message, "echec");
+    }
+  };
+  //Fonction pour rembourser une dette
+  const handleDetteRembourseSubmit = async (e) => {
+    e.preventDefault();
+    if (!detteId || !montantRembourse) {
+      return afficherMessage("Tous les champs doivent être remplir!");
+    }
+    try {
+      const reponse = await fetch("http://localhost:4000/detteRembourses", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ detteId, montantRembourse }),
+      });
+      const data = await reponse.json();
+      if (!reponse.ok) {
+        throw new Error(data.message);
+      }
+      afficherMessage("Remboursement effectué avec succès", "succes");
+      setDetteId(null);
+      setProduitId("");
+      setFournisseurId("");
+      setQuantite("");
+      setMontant("");
+    } catch (error) {
+      console.error("Erreur", error);
+      afficherMessage(error.message, "echec");
+    }
   };
   // Modidier une creance
   const editeCreance = (id) => {
@@ -182,6 +253,28 @@ export default function Finance() {
       );
   }, []);
 
+  //Charger les dettes remboursée
+  useEffect(() => {
+    fetch("http://localhost:4000/detteRembourses")
+      .then((res) => res.json())
+      .then((data) => {
+        setDetteRembourse(data);
+        console.log("Donnée de dette remboursé chargées avec succès!", data);
+      })
+      .catch((error) => console.error("Erreur GET detteRembourses", error));
+  }, []);
+  // Charger les creances soldes
+  useEffect(() => {
+    fetch("http://localhost:4000/creanceSoldes")
+      .then((res) => res.json())
+      .then((data) => {
+        setCreanceSolde(data);
+        console.log("Données de creances soldées avec succès!");
+      })
+      .catch((err) =>
+        console.error("Erreur de chargement de creance solde", err),
+      );
+  }, []);
   // Modifier une dette
   const editeDette = (id) => {
     const detteSelectionner = dettes.find((dette) => dette.id === id);
@@ -335,7 +428,7 @@ export default function Finance() {
       .catch((err) => console.error("Erreur get Produit", err));
   }, []);
 
-  // Fonctioon handleSubmitCreance
+  // Fonction handleSubmitCreance
   const handleCreance = (e) => {
     e.preventDefault();
     if (
@@ -367,6 +460,8 @@ export default function Finance() {
         quantite,
         profession,
         montantTotal,
+        montantVerse,
+        montantRestant,
         dateSolde,
       }),
     })
@@ -420,7 +515,7 @@ export default function Finance() {
           Gestion de Finances
         </h1>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 bg-gray-100 gap-2 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 bg-gray-100 gap-2 mt-4">
         <button
           onClick={() => setActiveTable("Créance")}
           className={`text-sm rounded-t-md font-bold p-3 ${activeTable === "Créance" ? "bg-white text-blue-600" : ""}`}
@@ -438,7 +533,7 @@ export default function Finance() {
           onClick={() => setActiveTable("Créance soldée")}
           className={`text-sm rounded-t-md font-bold p-3 ${activeTable === "Créance soldée" ? "bg-white text-blue-600" : ""}`}
         >
-          Créance soldée
+          Créance Soldée
         </button>
         <button
           onClick={() => setActiveTable("Dette remboursée")}
@@ -451,6 +546,12 @@ export default function Finance() {
           className={`text-sm rounded-t-md font-bold p-3 ${activeTable === "Factures" ? "bg-white text-blue-600" : ""}`}
         >
           Factures
+        </button>
+        <button
+          onClick={() => setActiveTable("Historique de Payement")}
+          className={`text-sm rounded-t-md font-medium p-3 ${activeTable === "Historique de Payement" ? "bg-white text-blue-600" : ""}`}
+        >
+          Historique de Payement
         </button>
       </div>
       <div className="flex-1 justify-center">
@@ -527,7 +628,7 @@ export default function Finance() {
                 className={`bg-black/50 fixed inset-0 flex justify-center items-center transition-all duration-500 ${isOpenModal ? "opacity-100" : "opacity-0 pointer-events-none"}  p-4`}
               >
                 <div
-                  className={`w-full max-w-md relative rounded-lg shadow-lg bg-gray-100 transition-all duration-500 ${isOpenModal ? "opacity-100 scale-100" : "opacity-0 scale-95"} p-5`}
+                  className={`w-full max-w-md relative rounded-lg shadow-lg bg-gray-100 transition-all duration-500 ${isOpenModal ? "opacity-100 scale-100" : "opacity-0 scale-95"} p-3`}
                 >
                   <button
                     onClick={() => setIsOpenModal(false)}
@@ -537,10 +638,12 @@ export default function Finance() {
                   </button>
                   <form
                     onSubmit={creanceId ? handleEditeCreance : handleCreance}
-                    className="flex flex-col p-2 space-y-2 text-xs"
+                    className="flex flex-col p-2 text-xs space-y-1"
                   >
                     <h1 className="font-bold text-lg p-2 text-blue-900">
-                      Nouvelle Créance
+                      {creanceId
+                        ? "Modification de la Creance"
+                        : "Enregistrer une Creance"}
                     </h1>
                     <select
                       name="clientId"
@@ -579,38 +682,69 @@ export default function Finance() {
                         </option>
                       ))}
                     </select>
+                    <label className="ps-1 font-medium" htmlFor="profession">
+                      Profession
+                    </label>
                     <input
                       type="text"
+                      id="profession"
+                      name="profession"
                       value={profession}
                       placeholder="Profession"
-                      className={`w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500}`}
+                      className={`w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-600}`}
                       onChange={(e) => setProfession(e.target.value)}
                     />
+                    <label className="ps-1 font-medium" htmlFor="quantite">
+                      Quantité
+                    </label>
                     <input
                       type="number"
                       value={quantite}
+                      id="quantite"
+                      name="quantite"
                       placeholder="Quantite"
                       className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
                       onChange={(e) => setQuantite(Number(e.target.value))}
                     />
+                    <label className="ps-1 font-medium" htmlFor="prixProduit">
+                      Prix Unitaire
+                    </label>
                     <input
                       type="number"
+                      id="prixProduit"
+                      name="prixProduit"
                       value={prixProduit}
                       placeholder="Prix Unitaire"
                       className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
                       readOnly
                     />
+                    <label className="ps-1 font-medium" htmlFor="dateSolde">
+                      Date prévu de payement
+                    </label>
                     <input
                       type="date"
+                      id="dateSolde"
+                      name="dateSolde"
                       value={dateSolde}
                       className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
                       onChange={(e) => setDateSolde(e.target.value)}
                     />
+                    <label className="ps-1 font-medium" htmlFor="montantTotal">
+                      Montant Total
+                    </label>
                     <input
                       type="number"
+                      id="montantTotal"
+                      name="montantTotal"
                       value={montantTotal}
                       placeholder="Montant Total"
                       className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      readOnly
+                    />
+                    <input
+                      type="number"
+                      value={montantRestant}
+                      className="hidden w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
                       readOnly
                     />
                     <button
@@ -639,14 +773,14 @@ export default function Finance() {
             <div className="p-3 overfow-x-auto overflow-y-auto">
               <table className="min-w-full overflow-x-auto">
                 <thead className="text-blue-600 text-left">
-                  <tr className="bg-gray-100 border">
-                    <th className="p-3">Nom Creancier</th>
-                    <th className="p-3">Profession</th>
+                  <tr className="bg-gray-100 border text-md">
+                    <th className="p-3">ID</th>
+                    <th className="p-3">Creancier</th>
                     <th className="p-3">Produit</th>
                     <th className="p-3">Quantité</th>
                     <th className="p-3">Montant</th>
+                    <th className="p-3">Restant</th>
                     <th className="p-3">Date</th>
-                    <th className="p-3">Date prevue</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Actions</th>
                   </tr>
@@ -658,19 +792,27 @@ export default function Finance() {
                       value={creance.id}
                       className="hover:bg-gray-100 p-3 border-b"
                     >
-                      <td className="p-3">{creance.client.clientName}</td>
-                      <td className="p-3">{creance.profession}</td>
+                      <td className="p-3">{creance.id}</td>
+                      <td className="p-3 font-bold">
+                        {creance.client.clientName}
+                      </td>
                       <td className="p-3">{creance.produit.nomProduit}</td>
                       <td className="p-3">{creance.quantite}</td>
-                      <td className="p-3">{creance.montantTotal} FCFA</td>
+                      <td className="p-3 font-medium">
+                        {creance.montantTotal} CFA
+                      </td>
+                      <td className="p-3 font-medium text-green-500">
+                        {creance.montantRestant} CFA
+                      </td>
                       <td className="p-3">
                         {new Date(creance.createdAt).toLocaleString()}
                       </td>
-                      <td className="p-3 font-bold text-green-600">
-                        {new Date(creance.dateSolde).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-red-500 font-bold">
-                        {creance.statusCreance}
+                      <td className="p-3">
+                        <p
+                          className={`p-1 border rounded-lg bg-gray-100 shadow-md text-center font-bold ${creance.statusCreance === "Soldé" ? "text-green-500" : creance.statusCreance === "En cour" ? "text-red-500" : "text-violet-500"}`}
+                        >
+                          {creance.statusCreance}
+                        </p>
                       </td>
                       <td className="p-3">
                         <button
@@ -684,9 +826,6 @@ export default function Finance() {
                           className="p-2 text-xs border bg-red-500 hover:bg-red-600 text-gray-100"
                         >
                           <MdDelete />
-                        </button>
-                        <button className="p-2 text-xs border bg-violet-800 hover:bg-violet-800 text-gray-100">
-                          <MdSell />
                         </button>
                       </td>
                     </tr>
@@ -743,7 +882,7 @@ export default function Finance() {
                   <span className="font-bold text-blue-900 p-3">
                     Montant Créance :
                   </span>
-                  {creance.montantTotal} FCFA
+                  {creance.montantTotal} CFA
                 </p>
                 <p>
                   <span className="font-bold text-blue-900 p-3">Date :</span>
@@ -798,9 +937,7 @@ export default function Finance() {
                   {dette.montant} FCFA
                 </p>
                 <p>
-                  <span className="font-bold text-blue-900 p-3">
-                    Date Prevue :
-                  </span>
+                  <span className="font-bold text-blue-900 p-3">Date:</span>
                   {new Date(dette.createdAt).toLocaleString()}
                 </p>
                 <p>
@@ -814,19 +951,391 @@ export default function Finance() {
           </div>
         )}
         {activeTable === "Créance soldée" && (
-          <div className="text-center mt-5">
-            <div>
+          <div className="mt-2">
+            <div className="p-4 text-xs">
+              <button
+                onClick={() => setIsOpenModal(true)}
+                className="p-2 bg-green-500 hover:bg-green-700 text-white rounded-lg"
+              >
+                Solder une Creance
+              </button>
+            </div>
+            <div className="text-center mt-2">
               <h1>Liste de Créance soldée</h1>
             </div>
-            <div></div>
+            <div className="p-3">
+              <table className="min-w-full overflow-x-auto">
+                <thead className="text-blue-600 text-left">
+                  <tr className="bg-gray-100 border text-md">
+                    <th className="p-3">Creancier</th>
+                    <th className="p-3">Produit</th>
+                    <th className="p-3">Quantité</th>
+                    <th className="p-3">Montant</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="text-left text-xs border p-3">
+                  {creances
+                    .filter(
+                      (creanceStatus) =>
+                        creanceStatus.statusCreance === "Soldé",
+                    )
+                    .map((creance) => (
+                      <tr key={creance.id} value={creance.id}>
+                        <td className="p-3 font-bold">
+                          {creance.client.clientName}
+                        </td>
+                        <td className="p-3">{creance.produit.nomProduit}</td>
+                        <td className="p-3">{creance.quantite}</td>
+                        <td className="p-3 font-medium">
+                          {creance.montantTotal} CFA
+                        </td>
+                        <td className="p-3">
+                          {new Date(creance.createdAt).toLocaleString()}
+                        </td>
+                        <td className="p-3">
+                          <p
+                            className={`p-1 border rounded-lg bg-gray-100 shadow-md text-center font-bold ${creance.statusCreance === "Soldé" ? "text-green-500" : creance.statusCreance === "En cour" ? "text-red-500" : "text-violet-500"}`}
+                          >
+                            {creance.statusCreance}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex">
+              <div
+                className={`bg-black/50 fixed inset-0 flex justify-center items-center transition-all duration-500 ${isOpenModal ? "opacity-100" : "opacity-0 pointer-events-none"}  p-4`}
+              >
+                <div
+                  className={`w-full max-w-md relative rounded-lg shadow-lg bg-gray-100 transition-all duration-500 ${isOpenModal ? "opacity-100 scale-100" : "opacity-0 scale-95"} p-3`}
+                >
+                  <button
+                    onClick={() => setIsOpenModal(false)}
+                    className="absolute right-6 top-2 text-xl"
+                  >
+                    X
+                  </button>
+                  <form
+                    onSubmit={handleSubmitCreanceSolde}
+                    className="flex flex-col p-2 space-y-1 text-xs"
+                  >
+                    <h1 className="font-bold text-lg p-2 text-blue-900">
+                      Solder Créance
+                    </h1>
+                    <select
+                      className="border border-gray-300 w-full rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      name="creanceId"
+                      id="creanceId"
+                      value={creanceId}
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        const creanceSelect = creances.find(
+                          (creance) => creance.id === id,
+                        );
+                        setCreanceId(id);
+                        if (creanceSelect) {
+                          setClientId(creanceSelect.client.clientName);
+                          setProduitId(creanceSelect.produit.nomProduit);
+                          setQuantite(creanceSelect.quantite);
+                          setMontantInitial(creanceSelect.montantTotal);
+                        }
+                      }}
+                    >
+                      <option value="">Selectionner une creance</option>
+                      {creances.map((creance) => (
+                        <option key={creance.id} value={creance.id}>
+                          {creance.id}
+                        </option>
+                      ))}
+                    </select>
+                    <label className="font-medium ps-1" htmlFor="clientId">
+                      Client
+                    </label>
+                    <input
+                      className="border border-gray-300 w-full rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      type="text"
+                      id="clientId"
+                      name="clientId"
+                      value={clientId}
+                      readOnly
+                    />
+                    <label className="font-medium ps-1" htmlFor="produitId">
+                      Produit
+                    </label>
+                    <input
+                      className="border border-gray-300 w-full rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      type="text"
+                      id="produitId"
+                      name="produitId"
+                      value={produitId}
+                      readOnly
+                    />
+                    <label className="ps-1 font-medium" htmlFor="quantite">
+                      Quantité
+                    </label>
+                    <input
+                      type="number"
+                      value={quantite}
+                      id="quantite"
+                      name="quantite"
+                      placeholder="Quantite"
+                      className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      readOnly
+                    />
+                    <label className="ps-1 font-medium" htmlFor="montantTotal">
+                      Montant Total
+                    </label>
+                    <input
+                      type="number"
+                      id="montantTotal"
+                      name="montantTotal"
+                      value={montantInitial}
+                      placeholder="Montant Total"
+                      className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      readOnly
+                    />
+                    <label className="ps-1 font-medium" htmlFor="montantSolde">
+                      Montant Soldé
+                    </label>
+                    <input
+                      type="number"
+                      id="montantSolde"
+                      name="montantSolde"
+                      value={montantVerse}
+                      onChange={(e) => setMontantVerse(Number(e.target.value))}
+                      placeholder="Entrer un montant"
+                      className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                    />
+                    <label
+                      htmlFor="montantRestant"
+                      className="hidden font-medium"
+                    >
+                      Montant Restant
+                    </label>
+                    <input
+                      type="number"
+                      id="montantRestant"
+                      name="montantRestant"
+                      value={montantRestant}
+                      className="hidden w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring ring-blue-500"
+                      readOnly
+                    />
+                    <button
+                      type="submit"
+                      className="p-2 bg-blue-500 rounded-lg text-white"
+                    >
+                      Enregistrer
+                    </button>
+                  </form>
+                  <span
+                    className="text-xs p-2"
+                    style={{
+                      color:
+                        message.type === "info"
+                          ? "blue"
+                          : message.type === "succes"
+                            ? "green"
+                            : "red",
+                    }}
+                  >
+                    {message.text}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
         {activeTable === "Dette remboursée" && (
-          <div className="text-center mt-5">
-            <div>
+          <div className="mt-5">
+            <div className="text-center">
               <h1>Liste de Dette rembourssée</h1>
             </div>
-            <div></div>
+            <div className="p-3">
+              <table className="min-w-full overflow-x-auto">
+                <thead className="text-blue-600 text-left">
+                  <tr className="bg-gray-100 border text-md">
+                    <th className="p-3">Fournisseur</th>
+                    <th className="p-3">Produit</th>
+                    <th className="p-3">Quantité</th>
+                    <th className="p-3">Montant Total</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="text-left text-xs border p-3">
+                  {dettes
+                    .filter(
+                      (detteStatus) => detteStatus.statusDette === "Remboursée",
+                    )
+                    .map((dette) => (
+                      <tr key={dette.id} value={dette.id} className="">
+                        <td className="p-3 font-bold">
+                          {dette.fournisseur.nomFournisseur}
+                        </td>
+                        <td className="p-3">{dette.produit.nomProduit}</td>
+                        <td className="p-3">{dette.quantite}</td>
+                        <td className="p-3">{dette.montant}</td>
+                        <td className="p-3">
+                          {new Date(dette.createdAt).toLocaleString()}
+                        </td>
+                        <td className="p-3 text-center">
+                          <p className="p-1 border rounded-lg font-medium text-green-600 shadow-md">
+                            {dette.statusDette}
+                          </p>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-2 text-xs">
+              <button
+                className="rounded-lg bg-green-500 p-2 text-white"
+                onClick={() => setDetteRembours(true)}
+              >
+                Rembourser une dette
+              </button>
+            </div>
+            <div
+              className={`bg-black/50 flex justify-center items-center transition-all duration-500 fixed inset-0 p-5 ${detteRembours ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            >
+              <div
+                className={`w-full max-w-md transition-all duration-500 rounded-lg bg-gray-100 p-6 relative  ${detteRembours ? "opacity-95 scale-100" : "opacity-0 scale-95"}`}
+              >
+                <button
+                  className="absolute right-4 top-2 text-xl"
+                  onClick={() => setDetteRembours(false)}
+                >
+                  X
+                </button>
+                <div className="p-3 font-bold text-blue-600 text-lg">
+                  <h1>Rembourser une Dette</h1>
+                </div>
+                <form
+                  className="w-full flex flex-col text-xs max-w-md space-y-1 p-2"
+                  onSubmit={handleDetteRembourseSubmit}
+                >
+                  <select
+                    name="detteId"
+                    id="detteId"
+                    value={detteId}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setDetteId(id);
+                      const selectDette = dettes.find(
+                        (dette) => dette.id === id,
+                      );
+                      if (selectDette) {
+                        setFournisseurId(
+                          selectDette.fournisseur.nomFournisseur,
+                        );
+                        setProduitId(selectDette.produit.nomProduit);
+                        setQuantite(selectDette.quantite);
+                        setMontantDette(selectDette.montant);
+                      }
+                    }}
+                    className="focus:outline-none focus:ring ring-blue-500 w-full rounded-lg border p-2"
+                  >
+                    <option value="">--Selectionner une dette--</option>
+                    {dettes.map((dette) => (
+                      <option key={dette.id} value={dette.id}>
+                        {dette.id}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="fournisseurId" className="font-medium ps-1">
+                    Fournisseur
+                  </label>
+                  <input
+                    type="text"
+                    value={fournisseurId}
+                    id="fournisseurId"
+                    name="fournisseurId"
+                    readOnly
+                    className="focus:outline-none focus:ring ring-blue-500 w-full rounded-lg border p-2"
+                  />
+                  <label htmlFor="produitId" className="font-medium ps-1">
+                    Produit
+                  </label>
+                  <input
+                    type="text"
+                    value={produitId}
+                    id="produitId"
+                    name="produitId"
+                    readOnly
+                    className="focus:outline-none focus:ring ring-blue-500 w-full rounded-lg border p-2"
+                  />
+                  <label htmlFor="quantite" className="font-medium ps-1">
+                    Quantite
+                  </label>
+                  <input
+                    type="number"
+                    value={quantite}
+                    id="quantite"
+                    name="quantite"
+                    readOnly
+                    className="focus:outline-none focus:ring ring-blue-500 w-full rounded-lg border p-2"
+                  />
+                  <label htmlFor="montantTotal" className="ps-1 font-medium">
+                    Montant Total
+                  </label>
+                  <input
+                    type="number"
+                    value={montantDette}
+                    id="montantTotal"
+                    name="montantTotal"
+                    className="border rounded-lg focus:outline-none focus:ring ring-blue-600 p-2"
+                    readOnly
+                  />
+                  <label htmlFor="montant" className="ps-1 font-medium">
+                    Montant remboursé
+                  </label>
+                  <input
+                    type="number"
+                    value={montantRembourse}
+                    id="montant"
+                    name="montant"
+                    className="border rounded-lg focus:outline-none focus:ring ring-blue-600 p-2"
+                    onChange={(e) =>
+                      setMontantRembourse(Number(e.target.value))
+                    }
+                  />
+                  <label htmlFor="montant" className="hidden ps-1 font-medium">
+                    Montant Restant
+                  </label>
+                  <input
+                    type="number"
+                    value={montantReste}
+                    id="montant"
+                    name="montant"
+                    className="hidden border rounded-lg focus:outline-none focus:ring ring-blue-600 p-2"
+                    readOnly
+                  />
+                  <button
+                    type="submit"
+                    className="bg-green-500 p-2 text-white rounded-lg"
+                  >
+                    Enregistrer
+                  </button>
+                  <span
+                    style={{
+                      color:
+                        message.type === "succes"
+                          ? "green"
+                          : message.type === "info"
+                            ? "blue"
+                            : "red",
+                    }}
+                  >
+                    {message.text}
+                  </span>
+                </form>
+              </div>
+            </div>
           </div>
         )}
         {activeTable === "Dette" && (
@@ -856,14 +1365,14 @@ export default function Finance() {
                   </p>
                   <div className="flex justify-end space-x-2">
                     <button
-                      type="button"
-                      onClick={() => setOpenDeleteDette(false)}
+                      type="submit"
                       className="text-xs p-1 bg-blue-500 text-white"
                     >
-                      Modifier
+                      Supprimer
                     </button>
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={() => setOpenDeleteDette(false)}
                       className="text-xs p-1 bg-red-500 text-white"
                     >
                       Annuler
@@ -904,15 +1413,16 @@ export default function Finance() {
             </div>
             <div className="p-3 overfow-x-auto overflow-y-auto">
               <table className="min-w-full overflow-x-auto">
-                <thead className="text-blue-600 text-left">
+                <thead className="text-blue-600 text-left text-md">
                   <tr className="bg-gray-100 border">
-                    <th className="p-3">Nom Fournisseur</th>
+                    <th className="p-3">ID</th>
+                    <th className="p-3">Fournisseur</th>
                     <th className="p-3">Produit</th>
                     <th className="p-3">Prix Unitaire</th>
                     <th className="p-3">Quantite</th>
                     <th className="p-3">Montant</th>
+                    <th className="p-3">Reste</th>
                     <th className="p-3">Date</th>
-                    <th className="p-3">Date prevue</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Actions</th>
                   </tr>
@@ -922,8 +1432,9 @@ export default function Finance() {
                     <tr
                       key={dette.id}
                       value={dette.id}
-                      className="hover:bg-gray-100 p-3 border-b"
+                      className="hover:bg-gray-100 border-b"
                     >
+                      <td className="p-3 font-bold">{dette.id}</td>
                       <td className="p-3 font-bold">
                         {dette.fournisseur.nomFournisseur}
                       </td>
@@ -933,14 +1444,27 @@ export default function Finance() {
                       <td className="p-3 text-red-600 font-bold">
                         {dette.montant} FCFA
                       </td>
+                      <td className="p-3 text-green-600 font-bold">
+                        {dette.montantReste === 0
+                          ? dette.montantReste
+                          : dette.montant}{" "}
+                        CFA
+                      </td>
                       <td className="p-3">
                         {new Date(dette.createdAt).toLocaleString()}
                       </td>
-                      <td className="p-3 font-bold text-green-600">
-                        {new Date(dette.dateRembourse).toLocaleString()}
-                      </td>
-                      <td className="p-3 font-bold text-red-500">
-                        {dette.statusDette}
+                      <td className="text-center">
+                        <p
+                          className={`border p-1 font-medium rounded-lg shadow-md ${
+                            dette.statusDette === "En cour"
+                              ? "text-red-600"
+                              : dette.statusDette === "Partiellement remboursée"
+                                ? "text-violet-600"
+                                : "text-green-600"
+                          }`}
+                        >
+                          {dette.statusDette}
+                        </p>
                       </td>
                       <td className="p-3">
                         <button
@@ -954,9 +1478,6 @@ export default function Finance() {
                           onClick={() => deleteDette(dette.id)}
                         >
                           <MdDelete />
-                        </button>
-                        <button className="border bg-violet-800 p-2 text-xs text-white">
-                          <GiPayMoney />
                         </button>
                       </td>
                     </tr>
@@ -1124,6 +1645,54 @@ export default function Finance() {
                   </button>
                 </form>
               </div>
+            </div>
+          </div>
+        )}
+        {activeTable === "Historique de Payement" && (
+          <div className="">
+            <div className="text-center p-5">
+              <h1 className="font-bold">Liste de Transactions</h1>
+            </div>
+            <div className="p-3">
+              <table className="w-full text-left border">
+                <thead className="bg-gray-100 border text-blue-600 text-md">
+                  <tr>
+                    <th className="p-3">ID Creance</th>
+                    <th className="p-3">Client</th>
+                    <th className="p-3">Produit</th>
+                    <th className="p-3">Quantité</th>
+                    <th className="p-3">Montant Versé</th>
+                    <th className="p-3">Montant Restant</th>
+                    <th className="p-3">Date de Payement</th>
+                  </tr>
+                </thead>
+
+                <tbody className="p-4 text-xs">
+                  {creanceSoldes.map((creanceSolde) => (
+                    <tr key={creanceSolde.id} value={creanceSolde.id}>
+                      <td className="text-left p-3">
+                        {creanceSolde.creanceId}
+                      </td>
+                      <td className="text-left p-3">
+                        {creanceSolde.client.clientName}
+                      </td>
+                      <td className="text-left p-3">
+                        {creanceSolde.produit.nomProduit}
+                      </td>
+                      <td className="text-left p-3">{creanceSolde.quantite}</td>
+                      <td className="text-left p-3">
+                        {creanceSolde.montantVerse} CFA
+                      </td>
+                      <td className="text-left p-3">
+                        {creanceSolde.montantRestant} CFA
+                      </td>
+                      <td className="text-left p-3">
+                        {new Date(creanceSolde.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

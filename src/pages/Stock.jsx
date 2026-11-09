@@ -300,7 +300,7 @@ export default function Stock() {
                   name="produitId"
                   value={produitId}
                   onChange={(e) => setProduitId(e.target.value)}
-                  className="border border-gray-300 w-full rounded-lg p-3 focus:outline-none focus:ring ring-blue-500"
+                  className="border max-h-60 overflow-y-scroll border-gray-300 w-full rounded-lg p-3 focus:outline-none focus:ring ring-blue-500"
                 >
                   <option value="">--Selectionner un Produit--</option>
                   {produits.map((produit) => (
